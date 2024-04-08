@@ -25,6 +25,7 @@ interface CreatePostFormState {
   };
 }
 export async function createPost(
+  slug: string,
   formState: CreatePostFormState,
   formData: FormData
 ): Promise<CreatePostFormState> {
@@ -46,6 +47,14 @@ export async function createPost(
       },
     };
   }
+  const topic = await db.topic.findFirst({ where: { slug } });
+  if (!topic) {
+    return {
+      errors: {
+        _form: ["Cannot find the topic you are trying to submit to."],
+      },
+    };
+  }
   let post: Post;
 
   try {
@@ -53,11 +62,27 @@ export async function createPost(
       data: {
         title: results.data.title,
         content: results.data.content,
+        userId: session.user.id,
+        topicId: topic.id,
       },
     });
-  } catch (error) {}
-  return {
-    errors: {},
-  };
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return {
+        errors: {
+          _form: [error.message],
+        },
+      };
+    } else {
+      return {
+        errors: {
+          _form: ["Failed to create post"],
+        },
+      };
+    }
+  }
+
   // revalidate the topicshow page
+  revalidatePath(paths.topicShow(slug));
+  redirect(paths.postShow(slug, post.id));
 }
